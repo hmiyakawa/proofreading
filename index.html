@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>文章構成ツール</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #f7f7f7;
+      color: #1a1a1a;
+    }
+    header {
+      padding: 20px;
+      background: #1f2937;
+      color: white;
+      text-align: center;
+    }
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding: 16px;
+    }
+    .panel {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 20px rgba(0,0,0,.08);
+      padding: 16px;
+      min-height: 400px;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel h2 {
+      margin-top: 0;
+      font-size: 1.1rem;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 8px;
+    }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 220px;
+      resize: vertical;
+      padding: 12px;
+      line-height: 1.6;
+      font-size: 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: #f8fafc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .output {
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: #f8fafc;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .diff-line {
+      margin: 0;
+      white-space: pre-wrap;
+    }
+    .insert {
+      background: rgba(22, 163, 74, 0.15);
+      color: #065f46;
+      border-radius: 3px;
+    }
+    .delete {
+      background: rgba(239, 68, 68, 0.15);
+      color: #991b1b;
+      text-decoration: line-through;
+      border-radius: 3px;
+    }
+    .change {
+      background: rgba(245, 158, 11, 0.15);
+      color: #92400e;
+      border-radius: 3px;
+    }
+    .help {
+      margin-top: 12px;
+      font-size: 0.95rem;
+      color: #4b5563;
+    }
+    .full-width {
+      grid-column: 1 / -1;
+    }
+    .button-row {
+      margin-top: 12px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>文章構成ツール</h1>
+    <p>入力と変換結果を同時に見ながら、変更点を確認できます。</p>
+  </header>
+  <main>
+    <section class="panel">
+      <h2>入力文章</h2>
+      <textarea id="inputText" placeholder="ここに文章を入力してください。
+例:
+・目的
+・前提条件
+・手順" autofocus></textarea>
+      <div class="button-row">
+        <button id="clearButton">クリア</button>
+        <button id="sampleButton">サンプルを読み込む</button>
+        <button id="proofreadButton">Claudeで校正</button>
+      </div>
+      <p class="help">テキストを入力すると、右側に構成済み文章と変更点が自動表示されます。</p>
+    </section>
+    <section class="panel">
+      <h2>Claude校正</h2>
+      <div id="proofreadText" class="output" aria-live="polite">Claudeで校正した結果がここに表示されます。</div>
+      <p class="help">校正後の文章をClaudeから取得します。APIキーはサーバー側で設定してください。</p>
+    </section>
+    <section class="panel full-width">
+      <h2>校正差分</h2>
+      <div id="diffText" class="output"></div>
+      <p class="help">元の文章とClaudeの校正結果の違いを色付きで表示します。</p>
+    </section>
+  </main>
+  <script>
+    const inputText = document.getElementById('inputText');
+    const proofreadText = document.getElementById('proofreadText');
+    const diffText = document.getElementById('diffText');
+    const clearButton = document.getElementById('clearButton');
+    const sampleButton = document.getElementById('sampleButton');
+    const proofreadButton = document.getElementById('proofreadButton');
+    let lastProofread = '';
+
+    function diffWords(original, transformed) {
+      const origWords = original.replace(/\s+/g, ' ').trim().split(' ');
+      const newWords = transformed.replace(/\s+/g, ' ').trim().split(' ');
+      const table = Array(origWords.length + 1).fill(null).map(() => Array(newWords.length + 1).fill(0));
+      for (let i = 1; i <= origWords.length; i++) {
+        for (let j = 1; j <= newWords.length; j++) {
+          if (origWords[i - 1] === newWords[j - 1]) {
+            table[i][j] = table[i - 1][j - 1] + 1;
+          } else {
+            table[i][j] = Math.max(table[i - 1][j], table[i][j - 1]);
+          }
+        }
+      }
+
+      let i = origWords.length;
+      let j = newWords.length;
+      const result = [];
+      while (i > 0 && j > 0) {
+        if (origWords[i - 1] === newWords[j - 1]) {
+          result.unshift({ type: 'same', text: origWords[i - 1] });
+          i--; j--;
+        } else if (table[i - 1][j] >= table[i][j - 1]) {
+          result.unshift({ type: 'delete', text: origWords[i - 1] });
+          i--;
+        } else {
+          result.unshift({ type: 'insert', text: newWords[j - 1] });
+          j--;
+        }
+      }
+      while (i > 0) {
+        result.unshift({ type: 'delete', text: origWords[i - 1] });
+        i--;
+      }
+      while (j > 0) {
+        result.unshift({ type: 'insert', text: newWords[j - 1] });
+        j--;
+      }
+      return result;
+    }
+
+    function renderDiff(original, transformed) {
+      const changes = diffWords(original, transformed);
+      return changes.map(change => {
+        if (change.type === 'same') {
+          return escapeHtml(change.text) + ' ';
+        }
+        const className = change.type === 'insert' ? 'insert' : 'delete';
+        return `<span class="${className}">${escapeHtml(change.text)}</span> `;
+      }).join('').trim();
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>\"']/g, tag => {
+        const chars = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        return chars[tag] || tag;
+      });
+    }
+
+    proofreadButton.addEventListener('click', async () => {
+      await proofreadWithClaude(inputText.value);
+    });
+    clearButton.addEventListener('click', () => {
+      inputText.value = '';
+      proofreadText.textContent = 'Claudeで校正した結果がここに表示されます。';
+      diffText.innerHTML = '校正差分はここに表示されます。';
+      inputText.focus();
+    });
+    sampleButton.addEventListener('click', () => {
+      inputText.value = '目的: 新規プロジェクトの要件を整理する\n前提条件: チームが仕様を共有している\n手順: デザインを確認し、開発を開始する\n注意: 納期を守ること';
+    });
+
+    async function proofreadWithClaude(text) {
+      if (!text.trim()) {
+        proofreadText.textContent = '文章を入力してください。';
+        diffText.innerHTML = '校正差分はここに表示されます。';
+        return;
+      }
+
+      proofreadText.textContent = 'Claudeで校正中...';
+      diffText.textContent = '';
+
+      try {
+        const response = await fetch('/api/proofread', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || '校正リクエストに失敗しました。');
+        }
+
+        const result = await response.json();
+        const proofread = result.proofread || '校正結果がありませんでした。';
+        lastProofread = proofread;
+        proofreadText.textContent = proofread;
+        diffText.innerHTML = renderDiff(inputText.value, proofread);
+      } catch (error) {
+        proofreadText.textContent = `エラー: ${error.message}`;
+        diffText.innerHTML = '校正差分を表示できませんでした。';
+      }
+    }
+
+  </script>
+</body>
+</html>
