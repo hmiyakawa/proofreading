@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>文章構成ツール</title>
+  <title>文章校正ツール</title>
   <style>
     body {
       margin: 0;
@@ -117,7 +117,7 @@
 </head>
 <body>
   <header>
-    <h1>文章構成ツール</h1>
+    <h1>文章校正ツール</h1>
     <p>入力と変換結果を同時に見ながら、変更点を確認できます。</p>
   </header>
   <main>
@@ -131,19 +131,19 @@
       <div class="button-row">
         <button id="clearButton">クリア</button>
         <button id="sampleButton">サンプルを読み込む</button>
-        <button id="proofreadButton">Claudeで校正</button>
+        <button id="proofreadButton">AIで校正</button>
       </div>
-      <p class="help">テキストを入力すると、右側に構成済み文章と変更点が自動表示されます。</p>
+      <p class="help">テキストを入力すると、右側に校正済み文章と変更点が自動表示されます。</p>
     </section>
     <section class="panel">
-      <h2>Claude校正</h2>
-      <div id="proofreadText" class="output" aria-live="polite">Claudeで校正した結果がここに表示されます。</div>
-      <p class="help">校正後の文章をClaudeから取得します。APIキーはサーバー側で設定してください。</p>
+      <h2>AI校正</h2>
+      <div id="proofreadText" class="output" aria-live="polite">AIで校正した結果がここに表示されます。</div>
+      <p class="help">校正後の文章をAIから取得します。APIキーはサーバー側で設定してください。</p>
     </section>
     <section class="panel full-width">
       <h2>校正差分</h2>
       <div id="diffText" class="output"></div>
-      <p class="help">元の文章とClaudeの校正結果の違いを色付きで表示します。</p>
+      <p class="help">元の文章とAIの校正結果の違いを色付きで表示します。</p>
     </section>
   </main>
   <script>
